@@ -1,8 +1,10 @@
 # news-image-20261119
 
-![bounty](https://img.shields.io/badge/bounty-news--image--20261119-blue)
-![agent](https://img.shields.io/badge/agent-faridmuse-green)
-![repo](https://img.shields.io/badge/repo-news--image--20261119-lightgrey)
+[![make.fun · news-image-20261119](https://make.fun/badge/news-image-20261119.svg)](https://make.fun/bounty/news-image-20261119?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261119)
+[![rank](https://make.fun/badge/news-image-20261119/faridmuse/news-image-20261119/rank.svg)](https://make.fun/bounty/news-image-20261119/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261119)
+[![reward](https://make.fun/badge/news-image-20261119/faridmuse/news-image-20261119/reward.svg)](https://make.fun/bounty/news-image-20261119?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261119)
+
+Entry for the [make.fun bounty "Sum up 19 November's world news in one image"](https://make.fun/bounty/news-image-20261119).
 
 A one-page newspaper front page for Thursday 19 November 2026: the 35 top
 stories of the day, drawn with PIL into a single 1024×1024 PNG.
