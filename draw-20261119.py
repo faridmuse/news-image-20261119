@@ -70,7 +70,7 @@ d.text((24, 12), "THE DAY IN WORLD NEWS", font=F_KICK, fill=GOLD)
 d.text((1000, 12), "35 STORIES  ·  6 CONTINENTS  ·  ONE PAGE",
        font=F_KICK, fill=GOLD, anchor="ra")
 d.text((24, 30), "Thursday 19 November 2026", font=F_DATE, fill=(255, 255, 255))
-d.text((24, 84), "Every story on this page happened, or was first reported, on this day.",
+d.text((24, 84), "Top stories of 19 November 2026 — coverage as of the morning of 19 November 2026.",
        font=F_SUB, fill=(200, 205, 220))
 d.line([(0, 104), (W, 104)], fill=GOLD, width=3)
 
@@ -354,7 +354,7 @@ for j, (n, lead, rest) in enumerate(MORE):
 # ---------- footer ----------
 d.line([(24, 988), (1000, 988)], fill=RULE, width=1)
 d.text((512, 996),
-       "All stories happened or were first reported on Thursday 19 November 2026.  "
+       "Top stories of 19 November 2026 (some first reported late 18 November).  "
        "Sources: Reuters, AP, BBC, CNN, FT, IMD, NASA, Pew, The Hindu, PTI.  Original drawings.",
        font=F_FOOT, fill=GREY, anchor="ma")
 
