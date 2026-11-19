@@ -1,363 +1,383 @@
 #!/usr/bin/env python3
-"""Front page for Thursday 19 November 2026 world news (1024x1024).
+"""Front page: world news of Thursday 19 November 2026.
 
-Same proven v2 layout as the 18 Nov entry (dev rate 975976): masthead,
-3 photo panels for stories 1-3, summaries for topics 1-10, headlines
-11-35 only, world map with numbered dots for stories 1-10, by-the-numbers.
-
-All 35 stories verified by web search on 19 Nov 2026 (see sources.md):
-GTA VI rollout, Iran-Gulf escalation, Shenzhen trilateral, Jeffries,
-Cyclone Akvan, Fed minutes, Peltola, Pew, Voyager 1, Nvidia H200, plus
-25 more headlines. Photos are original PIL drawings, not photographs.
+Draws a 1024x1024 newspaper front page with PIL only. All artwork is
+drawn programmatically (no external images): a Vice City sunset skyline,
+a Gulf night sea, a cyclone spiral, and a dotted world map.
+Stories and facts come from sources.md in this folder.
 """
+import math
+import random
 from PIL import Image, ImageDraw, ImageFont
 
-W = H = 1024
-PAPER = (247, 243, 234)
-INK = (18, 22, 30)
-NAVY = (16, 28, 54)
-RED = (178, 34, 34)
+W, H = 1024, 1024
+OUT = "entry.png"
+
+INK = (24, 24, 30)
+NAVY = (13, 27, 62)
 GOLD = (201, 162, 39)
-RULE = (120, 110, 95)
-GREY = (70, 66, 58)
+RED = (178, 34, 34)
+CREAM = (247, 243, 232)
+GREY = (90, 88, 82)
+RULE = (40, 40, 48)
 
-FD = "/usr/share/fonts/truetype/noto/"
-def font(name, size):
-    return ImageFont.truetype(FD + name, size)
+SANS = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+SANS_B = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+SERIF_B = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
 
-F_KICK = font("NotoSans-Bold.ttf", 15)
-F_DATE = font("NotoSans-ExtraBold.ttf", 46)
-F_SUB = font("NotoSans-Regular.ttf", 14)
-F_CAP = font("NotoSans-Bold.ttf", 11)
-F_TAG = font("NotoSans-Bold.ttf", 12)
-F_H1 = font("NotoSans-Bold.ttf", 18)
-F_B1 = font("NotoSans-Regular.ttf", 12)
-F_H2 = font("NotoSans-Bold.ttf", 15)
-F_B2 = font("NotoSans-Regular.ttf", 11)
-F_H3 = font("NotoSans-Bold.ttf", 16)
-F_B3 = font("NotoSans-Regular.ttf", 12)
-F_LIST = font("NotoSans-Regular.ttf", 12)
-F_LEAD = font("NotoSans-Bold.ttf", 12)
-F_SEC = font("NotoSans-Bold.ttf", 13)
-F_NUM = font("NotoSans-ExtraBold.ttf", 16)
-F_FOOT = font("NotoSans-Regular.ttf", 11)
-F_DOT = font("NotoSans-Bold.ttf", 9)
 
-img = Image.new("RGB", (W, H), PAPER)
-d = ImageDraw.Draw(img)
+def font(path, size):
+    return ImageFont.truetype(path, size)
 
-def wrap_px(text, fnt, max_w):
+
+def wrap(d, text, f, max_w):
+    """Greedy word wrap; returns a list of lines that fit max_w."""
     lines, cur = [], ""
-    for word in text.split(" "):
+    for word in text.split():
         trial = (cur + " " + word).strip()
-        if d.textlength(trial, font=fnt) <= max_w or not cur:
+        if d.textlength(trial, font=f) <= max_w:
             cur = trial
         else:
-            lines.append(cur)
+            if cur:
+                lines.append(cur)
             cur = word
     if cur:
         lines.append(cur)
     return lines
 
-def counter(x, y, n, r=11):
-    d.ellipse([x, y, x + 2 * r, y + 2 * r], fill=RED)
+
+def para(d, x, y, text, f, max_w, leading, fill=INK, max_lines=None):
+    """Draw a wrapped paragraph; returns the y just below the last line."""
+    lines = wrap(d, text, f, max_w)
+    if max_lines:
+        lines = lines[:max_lines]
+    for line in lines:
+        d.text((x, y), line, font=f, fill=fill)
+        y += leading
+    return y
+
+
+def num_badge(d, cx, cy, n, r=11):
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=RED)
     t = str(n)
-    d.text((x + r, y + r), t, font=F_DOT, fill=(255, 255, 255), anchor="mm")
+    f = font(SANS_B, 12)
+    d.text((cx - d.textlength(t, font=f) / 2, cy - 8), t,
+           font=f, fill=(255, 255, 255))
 
-# ---------- masthead (0-104) ----------
-d.rectangle([0, 0, W, 104], fill=NAVY)
-d.text((24, 12), "THE DAY IN WORLD NEWS", font=F_KICK, fill=GOLD)
-d.text((1000, 12), "35 STORIES  ·  6 CONTINENTS  ·  ONE PAGE",
-       font=F_KICK, fill=GOLD, anchor="ra")
-d.text((24, 30), "Thursday 19 November 2026", font=F_DATE, fill=(255, 255, 255))
-d.text((24, 84), "Top stories of 19 November 2026 — coverage as of the morning of 19 November 2026.",
-       font=F_SUB, fill=(200, 205, 220))
-d.line([(0, 104), (W, 104)], fill=GOLD, width=3)
 
-# ---------- picture panels, stories 1-3 (y 112-236) ----------
-PX = [24, 353, 682]
-PW = 317
-PY, PH = 112, 124
-
-def panel_caption(x, text):
-    d.rectangle([x, PY + PH - 22, x + PW, PY + PH], fill=(0, 0, 0))
-    d.text((x + PW // 2, PY + PH - 11), text, font=F_CAP,
-           fill=(255, 255, 255), anchor="mm")
-
-# 1 - Vice City at dusk: pink-orange sky, sun, palms, neon skyline
-x = PX[0]
-for yy in range(PH):
-    t = yy / PH
-    r = int(255 - 60 * t); g = int(120 + 60 * t); b = int(150 + 40 * t)
-    d.line([(x, PY + yy), (x + PW, PY + yy)], fill=(r, g, b))
-d.ellipse([x + 130, PY + 14, x + 186, PY + 70], fill=(255, 214, 120))
-# skyline
-for bx, bw, bh in ((0, 40, 52), (46, 30, 70), (82, 44, 46), (132, 34, 62),
-                   (172, 38, 48), (216, 30, 66), (252, 34, 54), (292, 25, 60)):
-    d.rectangle([x + bx, PY + PH - bh, x + bx + bw, PY + PH], fill=(38, 20, 52))
-    for wy in range(PY + PH - bh + 6, PY + PH - 4, 12):
-        for wx in range(bx + 6, bx + bw - 4, 10):
-            d.rectangle([x + wx, wy, x + wx + 4, wy + 5], fill=(255, 220, 90))
-# palm silhouettes, left and right
-for px, ph in ((18, 58), (296, 48)):
-    d.line([(x + px, PY + PH), (x + px, PY + PH - ph)], fill=(20, 40, 24), width=4)
-    for ang in range(-70, 71, 35):
-        import math
-        ex = px + int(22 * math.sin(math.radians(ang)))
-        ey = PY + PH - ph - int(14 * abs(math.cos(math.radians(ang))))
-        d.line([(x + px, PY + PH - ph), (x + ex, ey)], fill=(20, 40, 24), width=3)
-panel_caption(x, "VICE CITY  ·  LEONIDA")
-
-# 2 - Gulf night: radar, drone, moon, sea (story 2: Kuwait / Bahrain)
-x = PX[1]
-d.rectangle([x, PY, x + PW, PY + PH], fill=(13, 27, 62))
-for sx, sy in ((30, 18), (90, 30), (150, 14), (210, 26), (260, 12), (120, 40)):
-    d.ellipse([x + sx - 1, PY + sy - 1, x + sx + 1, PY + sy + 1], fill=(255, 255, 255))
-d.ellipse([x + 268, PY + 16, x + 296, PY + 44], fill=(232, 228, 200))
-d.rectangle([x, PY + 88, x + PW, PY + PH], fill=(18, 60, 70))
-d.line([(x, PY + 88), (x + PW, PY + 88)], fill=(120, 180, 190), width=2)
-d.line([(x + 52, PY + 88), (x + 52, PY + 56)], fill=(180, 190, 200), width=4)
-d.polygon([(x + 36, PY + 62), (x + 54, PY + 36), (x + 70, PY + 58)],
-          fill=(180, 190, 200))
-cx, cy = x + 160, PY + 52
-for dx, dy in ((-22, -14), (22, -14), (-22, 14), (22, 14)):
-    d.line([(cx, cy), (cx + dx, cy + dy)], fill=(230, 230, 230), width=3)
-    d.ellipse([cx + dx - 9, cy + dy - 3, cx + dx + 9, cy + dy + 3], fill=(230, 230, 230))
-d.rounded_rectangle([cx - 14, cy - 8, cx + 14, cy + 8], radius=5, fill=(230, 230, 230))
-d.line([(x + 225, PY + 30), (x + 285, PY + 62)], fill=(240, 140, 60), width=4)
-d.ellipse([x + 282, PY + 59, x + 290, PY + 67], fill=(240, 140, 60))
-panel_caption(x, "ALI AL SALEM  ·  KUWAIT")
-
-# 3 - Cyclone Akvan: spiral bands over the Bay of Bengal
-x = PX[2]
-d.rectangle([x, PY, x + PW, PY + PH], fill=(24, 78, 110))
-d.rectangle([x, PY + 96, x + PW, PY + PH], fill=(16, 52, 76))
-import math
-ccx, ccy = x + 158, PY + 62
-for k in range(4):
-    r0 = 12 + k * 14
-    d.arc([ccx - r0, ccy - r0, ccx + r0, ccy + r0],
-          start=40 + k * 55, end=300 + k * 55, fill=(235, 240, 245), width=7)
-d.ellipse([ccx - 8, ccy - 8, ccx + 8, ccy + 8], fill=(235, 240, 245))
-# rain streaks
-for sx in range(0, PW, 26):
-    d.line([(x + sx, PY + 8), (x + sx - 6, PY + 26)], fill=(190, 210, 225), width=2)
-panel_caption(x, "BAY OF BENGAL  ·  AKVAN")
-
-# ---------- topics 1-3 text (y 242-356) ----------
-TOP3 = [
-    ("ENTERTAINMENT · GAMING", "GTA VI rolls out worldwide after 13 years",
-     "Midnight launches began in New Zealand and Sydney; critics give it 99 "
-     "on Metacritic. Pre-orders top $1.65bn."),
-    ("MIDDLE EAST · CONFLICT", "Iran widens attacks to Kuwait and Bahrain",
-     "Tehran hit a US air base in Kuwait and sites in Bahrain, days after US "
-     "jets struck Qeshm. Gulf states say they intercepted the fire."),
-    ("ASIA · DIPLOMACY", "Trump, Xi and Putin to meet in Shenzhen",
-     "The first trilateral of the three leaders is set for Thursday at APEC. "
-     "Ukraine, Iran, trade and nuclear arms are on the table."),
+# ---------------------------------------------------------------- data
+# (headline, kicker, summary, date, place, source) for the top ten.
+TOP = [
+    ("GTA VI rolls out worldwide after 13 years", "ENTERTAINMENT \u00b7 GAMING",
+     "Midnight launches in New Zealand and Sydney; 99 on Metacritic; "
+     "$1.65bn in pre-orders.",
+     "19 Nov", "Sydney / New Zealand", "Reuters"),
+    ("Iran widens attacks to Kuwait and Bahrain", "MIDDLE EAST \u00b7 CONFLICT",
+     "Ali Al Salem air base in Kuwait and sites in Bahrain hit, in "
+     "retaliation for the US strike on Qeshm.",
+     "18 Nov, reported 19 Nov", "Kuwait / Bahrain", "AP / Reuters"),
+    ("Trump, Xi and Putin to meet in Shenzhen", "ASIA \u00b7 DIPLOMACY",
+     "First trilateral meeting of the three leaders, held on the APEC "
+     "sidelines.",
+     "19 Nov", "Shenzhen", "Reuters"),
+    ("Jeffries nominated Speaker, 251\u201311", "UNITED STATES \u00b7 POLITICS",
+     "House Democrats pick the New Yorker to lead the next Congress.",
+     "18 Nov, reported 19 Nov", "Washington", "AP / Reuters"),
+    ("Cyclone Akvan turns severe off India", "SOUTH ASIA \u00b7 WEATHER",
+     "Landfall due 20 Nov near Machilipatnam; gusts of 145 km/h; "
+     "200,000 evacuated.",
+     "19 Nov", "Bay of Bengal", "IMD / The Hindu"),
+    ("Fed minutes point to more rate hikes", "UNITED STATES \u00b7 ECONOMY",
+     "Minutes of 27\u201328 Oct; rates held at 3.75\u20134% on a 10\u20132 vote.",
+     "18 Nov, reported 19 Nov", "Washington", "Reuters"),
+    ("Peltola wins Alaska; Democrats 56\u201344", "UNITED STATES \u00b7 POLITICS",
+     "First Alaska Native senator; largest Democratic Senate majority "
+     "since 2009.",
+     "17\u201318 Nov, reported 19 Nov", "Alaska", "Reuters"),
+    ("Pew: Islam to be largest faith by 2035", "WORLD \u00b7 RELIGION",
+     "2.57bn Muslims vs 2.52bn Christians by 2035.",
+     "18 Nov, reported 19 Nov", "Washington", "Pew Research Center"),
+    ("Voyager 1 reaches one light-day out", "SPACE \u00b7 NASA",
+     "16bn miles from Earth; its signal now takes a day; NASA briefing "
+     "on 19 Nov.",
+     "18\u201319 Nov", "NASA / JPL", "NASA / Reuters"),
+    ("Nvidia halts H200 shipments to China", "TECH \u00b7 CHIPS",
+     "Acting CEO Colette Kress; $2.4bn licensed Hopper quarter.",
+     "18 Nov, reported 19 Nov", "Shenzhen", "Reuters"),
 ]
-TY = 242
-for i, (tag, head, body) in enumerate(TOP3):
-    x = PX[i]
-    counter(x, TY, i + 1)
-    d.text((x + 28, TY + 2), tag, font=F_TAG, fill=RED)
-    lines = wrap_px(head, F_H1, PW)
-    assert len(lines) <= 2, (head, lines)
-    hy = TY + 26
-    for ln in lines:
-        d.text((x, hy), ln, font=F_H1, fill=INK)
-        hy += 22
-    blines = wrap_px(body, F_B1, PW)
-    assert len(blines) <= 3, (head, blines)
-    by = hy + 4
-    for ln in blines:
-        d.text((x, by), ln, font=F_B1, fill=(52, 50, 46))
-        by += 15
 
-d.line([(24, 366), (1000, 366)], fill=INK, width=2)
-
-# ---------- topics 4-7 (4 cols, y 374-488) ----------
-TOP47 = [
-    ("UNITED STATES · POLITICS", "Jeffries nominated Speaker, 251–11",
-     "House Democrats pick the New Yorker to lead the next Congress. If "
-     "elected in January, he is the first Black Speaker."),
-    ("SOUTH ASIA · WEATHER", "Cyclone Akvan turns severe off India",
-     "Landfall is due Friday near Machilipatnam, with gusts to 145 km/h. "
-     "Odisha is moving 200,000 people from the coast."),
-    ("UNITED STATES · ECONOMY", "Fed minutes point to more rate hikes",
-     "Almost all officials expect further rises to tame inflation. Rates "
-     "held at 3.75–4% in a 10–2 vote."),
-    ("UNITED STATES · POLITICS", "Peltola wins Alaska; Democrats 56–44",
-     "The first Alaska Native senator takes the last midterm seat. Democrats "
-     "hold their biggest majority since 2009."),
-]
-CX4 = [24, 271, 518, 765]
-CW4 = 235
-for i, (tag, head, body) in enumerate(TOP47):
-    x = CX4[i]
-    n = i + 4
-    counter(x, 374, n, r=10)
-    d.text((x + 26, 375), tag, font=font("NotoSans-Bold.ttf", 10), fill=RED)
-    lines = wrap_px(head, F_H2, CW4)
-    assert len(lines) <= 3, (head, lines)
-    hy = 396
-    for ln in lines:
-        d.text((x, hy), ln, font=F_H2, fill=INK)
-        hy += 19
-    blines = wrap_px(body, F_B2, CW4)
-    assert len(blines) <= 3, (head, blines)
-    by = hy + 3
-    for ln in blines:
-        d.text((x, by), ln, font=F_B2, fill=(52, 50, 46))
-        by += 14
-
-# ---------- topics 8-10 (3 cols, y 496-610) ----------
-TOP810 = [
-    ("WORLD · RELIGION", "Pew: Islam to be largest faith by 2035",
-     "Muslims, 2.57bn, would pass Christians, 2.52bn, driven by higher "
-     "fertility. Both faiths keep growing."),
-    ("SPACE · NASA", "Voyager 1 reaches one light-day out",
-     "The 1977 probe is 16bn miles away; a radio signal now takes a day. "
-     "NASA confirms the milestone on Thursday."),
-    ("TECH · CHIPS", "Nvidia halts H200 shipments to China",
-     "Acting chief Colette Kress says no more licensed Hopper chips will "
-     "ship. The $2.4bn quarter is the last."),
-]
-for i, (tag, head, body) in enumerate(TOP810):
-    x = PX[i]
-    n = i + 8
-    counter(x, 496, n)
-    d.text((x + 28, 498), tag, font=F_TAG, fill=RED)
-    lines = wrap_px(head, F_H3, PW)
-    assert len(lines) <= 2, (head, lines)
-    hy = 522
-    for ln in lines:
-        d.text((x, hy), ln, font=F_H3, fill=INK)
-        hy += 20
-    blines = wrap_px(body, F_B3, PW)
-    assert len(blines) <= 3, (head, blines)
-    by = hy + 4
-    for ln in blines:
-        d.text((x, by), ln, font=F_B3, fill=(52, 50, 46))
-        by += 15
-
-d.line([(24, 620), (1000, 620)], fill=INK, width=2)
-
-# ---------- bottom: world map (left) + stories 11-35 (right) ----------
-LAND = {
-    1: [(9, 12), (18, 20)],
-    2: [(3, 6), (9, 15), (18, 20), (33, 36), (39, 57)],
-    3: [(3, 7), (9, 16), (30, 31), (33, 37), (38, 57)],
-    4: [(4, 8), (10, 16), (31, 37), (38, 56)],
-    5: [(5, 9), (11, 16), (31, 36), (39, 55), (55, 57)],
-    6: [(6, 10), (12, 16), (30, 32), (32, 36), (40, 54), (55, 56)],
-    7: [(7, 11), (13, 16), (30, 32), (33, 36), (41, 53)],
-    8: [(8, 12), (14, 16), (34, 36), (42, 52)],
-    9: [(9, 12), (14, 15), (30, 37), (38, 42), (43, 51)],
-    10: [(10, 13), (30, 37), (38, 42), (43, 50)],
-    11: [(11, 13), (30, 37), (39, 42), (44, 49)],
-    12: [(12, 13), (14, 18), (31, 37), (44, 46), (49, 53)],
-    13: [(13, 18), (31, 37), (50, 53)],
-    14: [(13, 19), (31, 37)],
-    15: [(14, 19), (32, 37)],
-    16: [(14, 19), (32, 36), (39, 40)],
-    17: [(15, 19), (32, 36), (39, 40)],
-    18: [(15, 18), (33, 35), (51, 57)],
-    19: [(16, 18), (33, 35), (51, 57)],
-    20: [(16, 18), (52, 56)],
-    21: [(17, 18), (52, 56), (58, 59)],
-    22: [(17, 18)],
-}
-MAP_X, MAP_Y = 24, 660
-DOT = (96, 116, 96)
-for r, spans in LAND.items():
-    for c0, c1 in spans:
-        for c in range(c0, c1 + 1):
-            cx = MAP_X + c * 5 + 2
-            cy = MAP_Y + r * 5 + 2
-            d.ellipse([cx - 1, cy - 1, cx + 1, cy + 1], fill=DOT)
-# numbered dots for stories 1-10: (lon, lat)
-DOTS = [(151, -33.9), (48, 29.3), (114.1, 22.5), (-77, 38.9), (85.4, 12.9),
-        (-77, 38.9), (-150, 64), (-77, 38.9), (-118.2, 34.2), (114.1, 22.5)]
-NUDGE = [(0, 0), (0, 0), (6, 6), (-10, -8), (0, 0),
-         (10, 8), (0, 0), (-2, 10), (0, 0), (-6, -6)]
-for i, (lon, lat) in enumerate(DOTS):
-    c = int((lon + 180) / 6)
-    r = int((78 - lat) / 5)
-    cx = MAP_X + c * 5 + 2 + NUDGE[i][0]
-    cy = MAP_Y + r * 5 + 2 + NUDGE[i][1]
-    d.ellipse([cx - 7, cy - 7, cx + 7, cy + 7], fill=RED)
-    d.text((cx, cy), str(i + 1), font=F_DOT, fill=(255, 255, 255), anchor="mm")
-
-d.text((24, 630), "WHERE THE NEWS HAPPENED", font=F_SEC, fill=INK)
-d.text((24, 792), "Numbered dots mark stories 1–10.", font=F_FOOT, fill=GREY)
-d.line([(24, 812), (330, 812)], fill=RULE, width=1)
-d.text((24, 820), "BY THE NUMBERS", font=F_SEC, fill=RED)
-NUMBERS = [
-    ("99", "GTA VI's Metacritic score, a record"),
-    ("$1.65bn", "GTA VI pre-orders and early sales"),
-    ("251–11", "Jeffries' vote for Speaker nominee"),
-    ("200,000", "people Odisha is moving from the coast"),
-]
-ny = 842
-for num, lab in NUMBERS:
-    d.text((24, ny), num, font=F_NUM, fill=NAVY)
-    d.text((24, ny + 20), lab, font=F_FOOT, fill=GREY)
-    ny += 34
-
-# stories 11-35, two columns, headline only, one line each
+# (headline, date, place, source) for stories 11-35. Place "" = no place given.
 MORE = [
-    (11, "India-Japan 2+2", "defence talks open in Tokyo"),
-    (12, "Modi meets royals", "William and Kate in Delhi"),
-    (13, "Somalia vs UAE", "secret bases alleged"),
-    (14, "Deutsche Bank", "$582m Epstein-linked deals"),
-    (15, "NSA network down", "classified system hit"),
-    (16, "Green cards", "US proposes tougher rules"),
-    (17, "Tanker attacked", "hit off Bulgaria"),
-    (18, "Gaza warning", "Board of Peace fears collapse"),
-    (19, "EU Ukraine loan", "€45bn plan proposed"),
-    (20, "Canada-China", "Carney rethinks ties, eyes US deal"),
-    (21, "AI cyber threat", "senators say defences lag"),
-    (22, "Saudi all-clear", "danger passed in 3 cities"),
-    (23, "Libya seizure", "cocaine, millions of pills"),
-    (24, "Mélenchon rise", "could win French presidency"),
-    (25, "Lost billion years", "Earth gap explained"),
-    (26, "Duckett 133", "England on top in 3rd ODI"),
-    (27, "AI 171 probe", "report at 'fag end'"),
-    (28, "50 pupils ill", "tar-plant pollution scare"),
-    (29, "Sports leagues", "India forms 14-member panel"),
-    (30, "Microsoft", "AI services talks with ByteDance"),
-    (31, "Oil slides", "Gulf risk, risk aversion rise"),
-    (32, "Trump on Vance", "'unhappy' over Iran war stance"),
-    (33, "Liu Yunping", "first Taiwanese American chair"),
-    (34, "Taiwan bill", "transnational repression crime"),
-    (35, "GTA VI verdict", "'may mark end of an era'"),
+    ("India\u2013Japan 2+2 defence talks open in Tokyo", "19 Nov", "Tokyo", "The Hindu / MEA"),
+    ("Modi meets Prince and Princess of Wales", "19 Nov", "New Delhi", "The Hindu"),
+    ("Somalia accuses UAE of secret bases", "17\u201318 Nov, reported 19 Nov", "Mogadishu", "Middle East Eye"),
+    ("Deutsche Bank handled $582m Epstein-linked deals", "18 Nov", "London", "Financial Times"),
+    ("NSA classified network suffers outage", "18 Nov", "Washington", "CNN"),
+    ("US proposes tougher green-card rules", "19 Nov", "Washington", "Reuters"),
+    ("LPG tanker hit by projectiles off Bulgaria", "19 Nov", "Black Sea", "Reuters"),
+    ("Gaza Board of Peace fears collapse", "18 Nov", "Gaza", "Al Jazeera"),
+    ("EU proposes \u20ac45bn loan for Ukraine", "18 Nov", "Brussels", "Financial Times / Reuters"),
+    ("Canada rethinks China ties, Carney eyes US deal", "19 Nov", "Ottawa", "Reuters"),
+    ("US senators: AI cyber threats outpacing defences", "19 Nov", "Washington", "Reuters"),
+    ("Saudi Arabia says danger passed in three cities", "19 Nov", "Riyadh", "Reuters"),
+    ("Cocaine and millions of pills seized in Libya", "19 Nov", "eastern Libya", "Reuters"),
+    ("M\u00e9lenchon could win French presidency, minister says", "19 Nov", "Paris", "Reuters"),
+    ("Earth's missing billion years of history explained", "19 Nov", "", "Space.com"),
+    ("Duckett's 133 puts England on top in 3rd ODI", "19 Nov", "Australia", "Reuters"),
+    ("AI 171 crash probe report at 'fag end'", "19 Nov", "New Delhi", "PTI"),
+    ("50 pupils hospitalised in tar-plant pollution scare", "19 Nov", "India", "PTI"),
+    ("India forms 14-member panel for sports leagues", "19 Nov", "New Delhi", "PTI"),
+    ("Microsoft in talks to sell AI services to ByteDance", "19 Nov", "", "Reuters"),
+    ("Oil slides as Gulf risk and risk aversion rise", "19 Nov", "", "Reuters"),
+    ("Trump 'unhappy' Vance did not back Iran war", "19 Nov", "Washington", "Reuters"),
+    ("Liu Yunping first Taiwanese American caucus chair", "19 Nov", "Washington", "AP"),
+    ("Taiwan adds transnational repression crime", "19 Nov", "Taipei", "CNA"),
+    ("GTA VI 'may mark end of an era'", "19 Nov", "", "The Economist"),
 ]
-d.text((342, 630), "ALSO ON THURSDAY 19 NOVEMBER — 25 MORE STORIES",
-       font=F_SEC, fill=RED)
-d.line([(342, 652), (1000, 652)], fill=RED, width=2)
-COL_X = [342, 673]
-COL_W = 323
-for j, (n, lead, rest) in enumerate(MORE):
-    col = j // 13
-    row = j % 13
-    x = COL_X[col]
-    y = 662 + row * 24
-    d.text((x, y), f"{n}.", font=F_LEAD, fill=RED)
-    lx = x + 26
-    d.text((lx, y), lead, font=F_LEAD, fill=INK)
-    lw = d.textlength(lead, font=F_LEAD)
-    txt = " — " + rest
-    assert d.textlength(txt, font=F_LIST) <= COL_W - 26 - lw, (n, lead, rest)
-    d.text((lx + lw, y), txt, font=F_LIST, fill=(52, 50, 46))
 
-# ---------- footer ----------
-d.line([(24, 988), (1000, 988)], fill=RULE, width=1)
-d.text((512, 996),
-       "Top stories of 19 November 2026 (some first reported late 18 November).  "
-       "Sources: Reuters, AP, BBC, CNN, FT, IMD, NASA, Pew, The Hindu, PTI.  Original drawings.",
-       font=F_FOOT, fill=GREY, anchor="ma")
+# ---------------------------------------------------------------- photos
+def photo_skyline(d, x0, y0, w, h):
+    """Vice City at sunset: pink sky, low sun, lit towers, one palm."""
+    d.rectangle([x0, y0, x0 + w, y0 + h], fill=(244, 130, 170))
+    d.rectangle([x0, y0 + h * 0.55, x0 + w, y0 + h], fill=(248, 183, 110))
+    d.ellipse([x0 + w * 0.60, y0 + 12, x0 + w * 0.60 + 52, y0 + 64],
+              fill=(255, 214, 120))
+    rnd = random.Random(7)
+    bx = x0 + 4
+    while bx < x0 + w - 18:
+        bw = rnd.randint(26, 44)
+        bh = rnd.randint(38, 82)
+        by = y0 + h - bh
+        d.rectangle([bx, by, bx + bw, y0 + h], fill=(38, 24, 58))
+        for wy in range(by + 8, y0 + h - 6, 12):
+            for wx in range(bx + 5, bx + bw - 5, 10):
+                if rnd.random() < 0.55:
+                    d.rectangle([wx, wy, wx + 4, wy + 5], fill=(255, 214, 110))
+        bx += bw + 3
+    px, py = x0 + 14, y0 + h - 6
+    d.line([px, py, px + 4, py - 42], fill=(30, 18, 40), width=3)
+    for ang in (-70, -40, -12, 18, 48):
+        rad = math.radians(ang)
+        d.line([px + 4, py - 42,
+                px + 4 + 26 * math.cos(rad), py - 42 + 14 * math.sin(rad)],
+               fill=(30, 18, 40), width=3)
+    d.rectangle([x0, y0 + h - 16, x0 + w, y0 + h], fill=(20, 20, 20))
+    lab = "VICE CITY \u00b7 LEONIDA"
+    lf = font(SANS_B, 10)
+    d.text((x0 + w / 2 - d.textlength(lab, font=lf) / 2, y0 + h - 14),
+           lab, font=lf, fill=(255, 255, 255))
 
-img.save("/home/hatch/workspace/makefun/news-image-20261119/entry.png",
-         optimize=True)
-print("saved entry.png")
+
+def photo_gulf(d, x0, y0, w, h):
+    """Night sea in the Gulf: stars, moon, a tanker, a missile streak."""
+    d.rectangle([x0, y0, x0 + w, y0 + h], fill=(10, 18, 54))
+    rnd = random.Random(11)
+    for _ in range(46):
+        sx = x0 + rnd.randint(4, w - 4)
+        sy = y0 + rnd.randint(4, int(h * 0.5))
+        d.ellipse([sx, sy, sx + 2, sy + 2], fill=(255, 255, 255))
+    d.ellipse([x0 + w - 58, y0 + 12, x0 + w - 22, y0 + 48],
+              fill=(238, 232, 200))
+    d.rectangle([x0, y0 + int(h * 0.58), x0 + w, y0 + h], fill=(16, 68, 96))
+    for i in range(5):
+        yy = y0 + int(h * 0.62) + i * 9
+        d.line([x0 + 8, yy, x0 + w - 8, yy], fill=(90, 160, 190), width=1)
+    tx, ty = x0 + w * 0.30, y0 + int(h * 0.52)
+    d.rectangle([tx, ty, tx + 120, ty + 18], fill=(12, 12, 16))
+    d.rectangle([tx + 88, ty - 16, tx + 104, ty], fill=(12, 12, 16))
+    d.rectangle([tx + 10, ty - 8, tx + 30, ty], fill=(12, 12, 16))
+    for wx in range(int(tx) + 6, int(tx) + 112, 12):
+        d.rectangle([wx, ty + 5, wx + 4, ty + 9], fill=(255, 200, 90))
+    d.line([x0 + w - 30, y0 + 18, x0 + w - 96, y0 + 62],
+           fill=(255, 140, 60), width=3)
+    d.ellipse([x0 + w - 102, y0 + 56, x0 + w - 90, y0 + 68],
+              fill=(255, 180, 80))
+    d.rectangle([x0, y0 + h - 16, x0 + w, y0 + h], fill=(20, 20, 20))
+    lab = "ALI AL SALEM \u00b7 KUWAIT"
+    lf = font(SANS_B, 10)
+    d.text((x0 + w / 2 - d.textlength(lab, font=lf) / 2, y0 + h - 14),
+           lab, font=lf, fill=(255, 255, 255))
+
+
+def photo_cyclone(d, x0, y0, w, h):
+    """Cyclone Akvan: teal sea, white spiral arms, driving rain."""
+    d.rectangle([x0, y0, x0 + w, y0 + h], fill=(14, 74, 96))
+    cx, cy = x0 + w * 0.52, y0 + h * 0.48
+    for arm in range(3):
+        pts = []
+        for t in range(0, 190, 4):
+            a = math.radians(t + arm * 120)
+            r = 4 + t * 0.42
+            pts.append((cx + r * math.cos(a), cy + r * math.sin(a) * 0.82))
+        d.line(pts, fill=(235, 245, 250), width=7, joint="curve")
+    d.ellipse([cx - 13, cy - 11, cx + 13, cy + 11], fill=(20, 40, 60))
+    d.ellipse([cx - 7, cy - 6, cx + 7, cy + 6], fill=(235, 245, 250))
+    rnd = random.Random(19)
+    for _ in range(26):
+        rx = x0 + rnd.randint(4, w - 10)
+        ry = y0 + rnd.randint(4, h - 24)
+        d.line([rx, ry, rx - 6, ry + 12], fill=(190, 220, 235), width=2)
+    d.rectangle([x0, y0 + h - 16, x0 + w, y0 + h], fill=(20, 20, 20))
+    lab = "BAY OF BENGAL \u00b7 AKVAN"
+    lf = font(SANS_B, 10)
+    d.text((x0 + w / 2 - d.textlength(lab, font=lf) / 2, y0 + h - 14),
+           lab, font=lf, fill=(255, 255, 255))
+
+
+# ---------------------------------------------------------------- map
+# Rough landmass blocks in map coordinates (x, y, w, h), hand-placed.
+LAND = [
+    (18, 22, 62, 52),    # North America
+    (52, 74, 30, 26),    # Central America
+    (78, 96, 34, 32),    # South America (kept inside the map box)
+    (148, 18, 26, 34),   # Europe
+    (142, 52, 34, 40),   # Africa
+    (178, 12, 78, 44),   # Asia
+    (196, 58, 44, 34),   # SE Asia / India area
+    (238, 96, 34, 22),   # Australia
+]
+# Numbered story dots (story no, map x, map y) inside the map box.
+DOTS = [(1, 262, 106), (2, 190, 38), (3, 236, 42), (4, 38, 32),
+        (5, 208, 68), (6, 58, 44), (7, 20, 24), (8, 28, 54),
+        (9, 50, 62), (10, 222, 60)]
+
+
+def draw_map(d, x0, y0, w, h):
+    d.rectangle([x0, y0, x0 + w, y0 + h], fill=(233, 228, 210))
+    step = 7
+    for bx, by, bw, bh in LAND:
+        for gx in range(bx, bx + bw, step):
+            for gy in range(by, min(by + bh, h), step):
+                d.ellipse([x0 + gx - 1, y0 + gy - 1, x0 + gx + 1, y0 + gy + 1],
+                          fill=(74, 110, 74))
+    for n, dx, dy in DOTS:
+        num_badge(d, x0 + dx, y0 + dy, n, r=9)
+
+
+# ---------------------------------------------------------------- page
+def top_story(d, x, y, w, idx, head_f, body_f, meta_f, kick_f):
+    head, kick, summ, date, place, src = TOP[idx]
+    n = idx + 1
+    num_badge(d, x + 11, y + 11, n)
+    d.text((x + 28, y + 3), kick, font=kick_f, fill=RED)
+    yy = para(d, x, y + 22, head, head_f, w, 19, max_lines=2)
+    yy = para(d, x, yy + 3, summ, body_f, w, 14, max_lines=2)
+    meta = f"{date} \u00b7 {place} \u00b7 {src}"
+    para(d, x, yy + 3, meta, meta_f, w, 12, fill=GREY, max_lines=1)
+    return yy
+
+
+def main():
+    img = Image.new("RGB", (W, H), CREAM)
+    d = ImageDraw.Draw(img)
+
+    f_title = font(SERIF_B, 46)
+    f_sub = font(SANS, 15)
+    f_eyebrow = font(SANS_B, 13)
+    f_head = font(SERIF_B, 18)
+    f_head_sm = font(SERIF_B, 16)
+    f_body = font(SANS, 11)
+    f_meta = font(SANS, 9)
+    f_kick = font(SANS_B, 10)
+    f_sec = font(SANS_B, 13)
+    f_more_head = font(SANS_B, 10)
+    f_more_meta = font(SANS, 8)
+
+    # ---- masthead
+    d.rectangle([0, 0, W, 112], fill=NAVY)
+    d.text((24, 12), "THE DAY IN WORLD NEWS", font=f_eyebrow, fill=GOLD)
+    right = "35 STORIES \u00b7 6 CONTINENTS \u00b7 ONE PAGE"
+    d.text((W - 24 - d.textlength(right, font=f_eyebrow), 12), right,
+           font=f_eyebrow, fill=GOLD)
+    d.text((24, 34), "Thursday 19 November 2026", font=f_title,
+           fill=(255, 255, 255))
+    d.text((24, 88), "Top stories of 19 November 2026 \u2014 coverage as of "
+           "the morning of 19 November 2026.", font=f_sub,
+           fill=(220, 225, 240))
+    d.rectangle([0, 112, W, 116], fill=GOLD)
+
+    # ---- photo row
+    pw, ph, gap = 318, 100, 11
+    px = 24
+    photo_skyline(d, px, 126, pw, ph)
+    photo_gulf(d, px + pw + gap, 126, pw, ph)
+    photo_cyclone(d, px + 2 * (pw + gap), 126, pw, ph)
+
+    # ---- top stories, rows of 3 / 4 / 3
+    col_w3 = (W - 48 - 2 * 20) / 3
+    col_w4 = (W - 48 - 3 * 16) / 4
+    y = 238
+    for i in range(3):
+        top_story(d, 24 + i * (col_w3 + 20), y, col_w3, i,
+                  f_head, f_body, f_meta, f_kick)
+    d.line([24, 346, W - 24, 346], fill=(200, 195, 180), width=1)
+    y = 356
+    for j, i in enumerate(range(3, 7)):
+        top_story(d, 24 + j * (col_w4 + 16), y, col_w4, i,
+                  f_head_sm, f_body, f_meta, f_kick)
+    d.line([24, 464, W - 24, 464], fill=(200, 195, 180), width=1)
+    y = 474
+    for i in range(7, 10):
+        top_story(d, 24 + (i - 7) * (col_w3 + 20), y, col_w3, i,
+                  f_head, f_body, f_meta, f_kick)
+
+    # ---- lower band
+    d.line([24, 584, W - 24, 584], fill=RULE, width=2)
+    d.text((24, 594), "WHERE THE NEWS HAPPENED", font=f_sec, fill=INK)
+    d.text((336, 594), "ALSO ON THURSDAY 19 NOVEMBER \u2014 25 MORE STORIES",
+           font=f_sec, fill=RED)
+    d.line([336, 616, W - 24, 616], fill=RED, width=1)
+
+    draw_map(d, 24, 622, 296, 128)
+    d.text((24, 758), "Numbered dots mark stories 1\u201310.",
+           font=f_meta, fill=GREY)
+
+    # by the numbers
+    d.line([24, 782, 320, 782], fill=(200, 195, 180), width=1)
+    d.text((24, 790), "BY THE NUMBERS", font=f_sec, fill=RED)
+    stats = [("99", "GTA VI's Metacritic score, a record"),
+             ("$1.65bn", "GTA VI pre-orders and early sales"),
+             ("251\u201311", "Jeffries' vote for Speaker nominee"),
+             ("200,000", "people Odisha is moving from the coast")]
+    yy = 812
+    for big, small in stats:
+        d.text((24, yy), big, font=font(SERIF_B, 15), fill=INK)
+        d.text((24, yy + 19), small, font=f_meta, fill=GREY)
+        yy += 32
+
+    # ---- headlines 11-35, two columns
+    col_x = [336, 672]
+    col_w = 316
+    per_col = 13
+    for ci in range(2):
+        yy = 626
+        for k in range(per_col):
+            idx = ci * per_col + k
+            if idx >= len(MORE):
+                break
+            head, date, place, src = MORE[idx]
+            num = str(11 + idx)
+            d.text((col_x[ci], yy), num + ".", font=f_more_head, fill=RED)
+            nx = col_x[ci] + 26
+            yy = para(d, nx, yy, head, f_more_head, col_w - 26, 12,
+                      max_lines=2)
+            meta = f"{date} \u00b7 {place} \u00b7 {src}" if place \
+                else f"{date} \u00b7 {src}"
+            yy = para(d, nx, yy + 1, meta, f_more_meta, col_w - 26, 10,
+                      fill=GREY, max_lines=1)
+            yy += 2
+
+    # ---- footer
+    d.line([24, 992, W - 24, 992], fill=RULE, width=1)
+    foot = ("Top stories of 19 November 2026 (some first reported late "
+            "18 November). Sources: Reuters, AP, BBC, CNN, FT, IMD, NASA, "
+            "Pew, The Hindu, PTI. Original drawings.")
+    fw = d.textlength(foot, font=f_meta)
+    d.text(((W - fw) / 2, 1000), foot, font=f_meta, fill=GREY)
+
+    img.save(OUT)
+    print(f"saved {OUT} {img.size}")
+
+
+if __name__ == "__main__":
+    main()
